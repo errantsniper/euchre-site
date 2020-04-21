@@ -7,6 +7,13 @@ import json
 from app import db
 
 
+friends = db.Table(
+    'friends',
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id')),
+    db.Column('friend_id', db.Integer, db.ForeignKey('user.id'))
+)
+
+
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), index=True, unique=True)
@@ -26,6 +33,11 @@ class User(UserMixin, db.Model):
         lazy='dynamic')
     last_message_read_time = db.Column(db.DateTime)
     notifications = db.relationship('Notification', backref='user', lazy='dynamic')
+    friend_list = db.relationship(
+        'User', secondary=friends,
+        primaryjoin=(friends.c.user_id == id),
+        secondaryjoin=(friends.c.friend_id == id),
+        lazy='dynamic')
 
     def __repr__(self):
         return f'<User {self.username}>'
@@ -47,6 +59,17 @@ class User(UserMixin, db.Model):
         n = Notification(name=name, payload_json=json.dumps(data), user=self)
         db.session.add(n)
         return n
+
+    def is_friends(self, user):
+        return self.friend_list.filter(friends.c.friend_id == user.id).count() > 0
+
+    def add_friend(self, user):
+        if not self.is_friends(user):
+            self.friend_list.append(user)
+
+    def remove_friend(self, user):
+        if self.is_friends(user):
+            self.friend_list.remove(user)
 
 
 class Message(db.Model):
